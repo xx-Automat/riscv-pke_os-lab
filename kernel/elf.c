@@ -87,6 +87,41 @@ void read_uint16(uint16 *out, char **off) {
         *out |= (uint16)(**off) << (i << 3); (*off)++;
     }
 }
+
+static char shstrtab[300];
+static elf_sect_header find_shstrtab(elf_ctx *ctx)
+{
+  elf_sect_header section_header;
+  int off = ctx->ehdr.shoff;
+  off += sizeof(section_header) * (ctx->ehdr.shstrndx);
+  if (elf_fpread(ctx, (void *)&section_header, sizeof(section_header), off) != sizeof(section_header)) 
+    panic("can't load section header!");
+  return section_header;
+}
+
+static elf_status elf_load_shstrtab(elf_ctx *ctx)
+{
+  elf_sect_header section_shstrtab = find_shstrtab(ctx);
+  // if (elf_fpread(ctx, (void *)strtab, section_strtab.sh_size, section_strtab.sh_offset) != section_strtab.sh_size)
+  //   return EL_EIO;
+//   sprint("%d/%llx/%llx\n",section_shstrtab.name,section_shstrtab.offset,section_shstrtab.size);
+  if (elf_fpread(ctx, (void *)shstrtab, 300, section_shstrtab.offset) != 300)
+    return EL_EIO;
+  return EL_OK;
+}
+
+static elf_sect_header find_debug_line(elf_ctx *ctx)
+{
+  elf_sect_header section_header;
+  int i, off;
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(section_header)) {
+      if (elf_fpread(ctx, (void *)&section_header, sizeof(section_header), off) != sizeof(section_header)) 
+        panic("can't load section header!");
+      if (!strcmp(shstrtab + section_header.name, ".debug_line")) break;
+  }
+  return section_header;
+}
+
 /*
 * analyzis the data in the debug_line section
 *
@@ -267,6 +302,15 @@ void load_bincode_from_host_elf(struct process *p) {
 
   // load elf
   if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+
+  // load strtab
+  if (elf_load_shstrtab(&elfloader) != EL_OK) panic("Fail on load shstrtab!\n");
+  
+  elf_sect_header debug_line_header = find_debug_line(&elfloader);
+  uint64 sp = p->trapframe->regs.sp;
+  if (elf_fpread(&elfloader, (void *)sp, debug_line_header.size, debug_line_header.offset) != debug_line_header.size)
+    panic("Fail to load debug_line.\n");
+  make_addr_line(&elfloader, (char *)sp, debug_line_header.size);
 
   // entry (virtual) address
   p->trapframe->epc = elfloader.ehdr.entry;
