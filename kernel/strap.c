@@ -50,7 +50,7 @@ void handle_mtimer_trap() {
 // sepc: the pc when fault happens;
 // stval: the virtual address that causes pagefault when being accessed.
 //
-void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
+void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval, uint64 user_sp) {
   sprint("handle_page_fault: %lx\n", stval);
   switch (mcause) {
     case CAUSE_STORE_PAGE_FAULT: {
@@ -59,11 +59,11 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // hint: first allocate a new physical page, and then, maps the new page to the
       // virtual address that causes the page fault.
       // panic( "You need to implement the operations that actually handle the page fault in lab2_3.\n" );
-      if ((stval < 0x7ffff000) && (stval > 0x7ffff000 - PGSIZE * 20)) {
+      if ((stval < user_sp) && (stval > user_sp - PGSIZE)) {
         void* pa = alloc_page();
         user_vm_map((pagetable_t)current->pagetable, ROUNDDOWN(stval, PGSIZE), PGSIZE, (uint64)pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
         //user_vm_map((pagetable_t)current->pagetable, stval - stval % PGSIZE, PGSIZE, (uint64)pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
-      }  
+      } else panic("this address is not available!");
       break;    
     }
     default:
@@ -99,7 +99,8 @@ void smode_trap_handler(void) {
     case CAUSE_LOAD_PAGE_FAULT:
       // the address of missing page is stored in stval
       // call handle_user_page_fault to process page faults
-      handle_user_page_fault(cause, read_csr(sepc), read_csr(stval));
+      handle_user_page_fault(cause, read_csr(sepc), read_csr(stval), current->user_sp);
+      current->user_sp -= PGSIZE;
       break;
     default:
       sprint("smode_trap_handler(): unexpected scause %p\n", read_csr(scause));
