@@ -35,6 +35,7 @@ ssize_t sys_user_exit(uint64 code) {
   sprint("User exit with code:%d.\n", code);
   // in lab3 now, we should reclaim the current process, and reschedule.
   free_process( current );
+  wake_up(current);
   schedule();
   return 0;
 }
@@ -78,8 +79,19 @@ ssize_t sys_user_yield() {
   // the rear of ready queue, and finally, schedule a READY process to run.
   //panic( "You need to implement the yield syscall in lab3_2.\n" );
   current->status = READY;
+  sprint("in sys_user_yield()\n");
   insert_to_ready_queue( current );
   schedule();
+  return 0;
+}
+
+ssize_t sys_user_wait(long wait_pid) {
+  return do_wait(current, wait_pid);
+}
+
+ssize_t sys_user_wait_status(long wait_pid) {
+  current->status = BLOCKED;
+  current->wait_pid = wait_pid;
   return 0;
 }
 
@@ -101,6 +113,10 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    case SYS_user_wait:
+      return sys_user_wait(a1);
+    case SYS_user_wait_status:
+      return sys_user_wait_status(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }

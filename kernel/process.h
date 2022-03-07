@@ -28,6 +28,7 @@ enum proc_status {
   RUNNING,         // currently running
   BLOCKED,         // waiting for something
   ZOMBIE,          // terminated but not reclaimed yet
+  AWAKE
 };
 
 // types of a segment
@@ -71,6 +72,8 @@ typedef struct process {
 
   // accounting
   int tick_count;
+
+  int wait_pid;
 }process;
 
 // switch to run user app
@@ -83,6 +86,9 @@ process* alloc_process();
 int free_process( process* proc );
 // fork a child from parent
 int do_fork(process* parent);
+
+int do_wait(process* parent, int wait_pid);
+void wake_up(process* cur);
 
 // current running process
 extern process* current;

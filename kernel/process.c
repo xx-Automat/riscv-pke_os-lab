@@ -201,13 +201,49 @@ int do_fork( process* parent)
         child->total_mapped_region++;
         break;
       }
+      case DATA_SEGMENT: {
+        uint64 pa = lookup_pa(parent->pagetable, parent->mapped_info[i].va);
+        void *child_pa = alloc_page();
+        memcpy(child_pa, (void *)pa, PGSIZE);
+        pa = (uint64)child_pa;
+        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
+        //sprint("do_fork map data segment at pa:%lx of parent to child at va:%lx.\n", pa, parent->mapped_info[i].va);
+        // after mapping, register the vm region (do not delete codes below!)
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages = 
+          parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
+        child->total_mapped_region++;
+        break;   
+      }
     }
   }
 
   child->status = READY;
   child->trapframe->regs.a0 = 0;
   child->parent = parent;
+  //sprint("in do fork()\n");
   insert_to_ready_queue( child );
 
   return child->pid;
+}
+
+int do_wait(process *parent, int wait_pid) {
+  if (wait_pid < -1 || wait_pid >= NPROC || (0 <= wait_pid && wait_pid < NPROC && procs[wait_pid].parent != parent))
+    return -1;
+  if (parent->status == BLOCKED) return -2;
+  return parent->wait_pid;
+}
+
+void wake_up(process *cur) {
+  process *p = cur->queue_next;
+  while (p)
+  {
+    if (p->status == BLOCKED && (p->wait_pid == cur->pid || (p->wait_pid == -1 && cur->parent == p))) {
+      p->status = AWAKE;
+      p->wait_pid = cur->pid;
+    }
+    p = p->queue_next;
+  }
+  
 }
