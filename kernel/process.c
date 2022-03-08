@@ -228,22 +228,59 @@ int do_fork( process* parent)
   return child->pid;
 }
 
-int do_wait(process *parent, int wait_pid) {
-  if (wait_pid < -1 || wait_pid >= NPROC || (0 <= wait_pid && wait_pid < NPROC && procs[wait_pid].parent != parent))
-    return -1;
-  if (parent->status == BLOCKED) return -2;
-  return parent->wait_pid;
+int do_wait(process *parent, int pid) {
+  parent->status = BLOCKED;
+  insert_to_ready_queue(&procs[pid]);
+  schedule();
+  return pid;
 }
 
-void wake_up(process *cur) {
-  process *p = cur->queue_next;
-  while (p)
-  {
-    if (p->status == BLOCKED && (p->wait_pid == cur->pid || (p->wait_pid == -1 && cur->parent == p))) {
-      p->status = AWAKE;
-      p->wait_pid = cur->pid;
+int find_child(process *parent, int pid) {
+  if (pid < -1 || pid >= NPROC || (pid != -1 && procs[pid].parent != parent)) return -1;
+  if (pid == -1) {
+    for (int i = 0; i < NPROC; ++i) {
+      if (procs[i].parent == current) return i;
     }
-    p = p->queue_next;
+  }
+  return pid; // current process has no child
+}
+
+int wait_child(int pid) {
+  if (pid < -1 || pid >= NPROC || procs[pid].parent != current) return -1;
+  if (procs[pid].status == FREE || procs[pid].status == ZOMBIE) return 0;
+  return 1;
+}
+
+process *waiting_queue_head = NULL;
+void insert_to_waiting_queue(process *proc) {
+  //sprint( "going to insert process %d to waiting queue.\n", proc->pid );
+  // if the queue is empty in the beginning
+  if( waiting_queue_head == NULL ){
+    proc->status = BLOCKED;
+    proc->queue_next = NULL;
+    waiting_queue_head = proc;
+    return;
   }
   
+  // waiting queue is not empty
+  process *p;
+  // browse the waiting queue to see if proc is already in-queue
+  for( p=waiting_queue_head; p->queue_next!=NULL; p=p->queue_next )
+    if( p == proc ) return;  //already in queue
+
+  // p points to the last element of the waiting queue
+  if( p==proc ) return;
+  proc->status = BLOCKED;
+  proc->queue_next = waiting_queue_head;
+  waiting_queue_head = proc;
+  return;
+}
+
+void check_blocked() {
+  if (waiting_queue_head) {
+    waiting_queue_head->status = READY;
+    process *p = waiting_queue_head;
+    waiting_queue_head = waiting_queue_head->queue_next;
+    insert_to_ready_queue(p);
+  }
 }

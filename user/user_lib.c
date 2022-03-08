@@ -80,21 +80,10 @@ void yield() {
 //
 // lib call to wait
 //
-int user_wait(int wait_pid) {
-  return do_user_call(SYS_user_wait, wait_pid, 0, 0, 0, 0, 0, 0);
-}
-
-void wait_status(int wait_pid) {
-  do_user_call(SYS_user_wait_status, wait_pid, 0, 0, 0, 0, 0, 0);
-}
-
-int wait(int wait_pid) {
-  wait_status(wait_pid);
-  int ret = user_wait(wait_pid);
-  while (ret == -2) {
-    //printu("--------yield()\n");
-    yield();
-    ret = user_wait(wait_pid);
-  }
-  return ret;
+int wait(int pid) {
+  pid = do_user_call(SYS_user_get_pid, pid, 0, 0, 0, 0, 0, 0);
+  if (pid == -1) return -1;
+  if (do_user_call(SYS_user_wait_child, pid, 0, 0, 0, 0, 0, 0) == 1) 
+    do_user_call(SYS_user_block, 0, 0, 0, 0, 0, 0, 0);
+  return pid;
 }
