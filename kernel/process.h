@@ -89,4 +89,11 @@ extern process* current;
 // virtual address of our simple heap
 extern uint64 g_ufree_page;
 
+#define NSEM 10
+
+int sem_new(int ini);
+void sem_change(int i, bool sub);
+bool sem_waiting(int i);
+void insert_to_sem_queue(int i, process *proc);
+void wake_up_one_by_sem(int i);
 #endif

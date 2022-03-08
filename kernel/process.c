@@ -211,3 +211,55 @@ int do_fork( process* parent)
 
   return child->pid;
 }
+
+int sem_index = 0;
+int sems[NSEM];
+
+int sem_new(int ini) {
+  if (sem_index < NSEM)
+  {
+    sems[sem_index] = ini;
+    return sem_index++;
+  }
+  return -1;
+}
+
+bool sem_waiting(int i) {
+  if(i >= 0 && i < sem_index){
+    return sems[i] < 0;
+  }
+  return FALSE;
+}
+void sem_change(int i, bool sub) {
+  if(i >= 0 && i < sem_index){
+    if(sub) sems[i]--;
+    else sems[i]++;
+  }
+}
+
+process *sem_procs[NSEM];
+
+void insert_to_sem_queue(int i, process *proc){
+  process *p = sem_procs[i];
+  if (p == NULL) {
+    proc->queue_next = NULL;
+    sem_procs[i] = proc;
+    return;
+  }
+
+  // browse the ready queue to see if proc is already in-queue
+  for( ; p->queue_next; p = p->queue_next)
+    if (p == proc) return;  //already in queue
+
+  if (p == proc) return;
+  p->queue_next = proc;
+  proc->queue_next = NULL;
+}
+
+void wake_up_one_by_sem(int i) {
+  process *p = sem_procs[i];
+  if (p) {
+    sem_procs[i] = p->queue_next;
+    insert_to_ready_queue(p);
+  }
+}
