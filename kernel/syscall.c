@@ -50,11 +50,20 @@ uint64 sys_user_allocate_page() {
   return va;
 }
 
+uint64 sys_user_malloc(uint64 n) {
+  return better_malloc(n);
+}
+
 //
 // reclaim a page, indicated by "va".
 //
 uint64 sys_user_free_page(uint64 va) {
   user_vm_unmap((pagetable_t)current->pagetable, va, PGSIZE, 1);
+  return 0;
+}
+
+uint64 sys_user_free(uint64 va) {
+  better_free(va);
   return 0;
 }
 
@@ -72,6 +81,10 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_allocate_page();
     case SYS_user_free_page:
       return sys_user_free_page(a1);
+    case SYS_user_malloc:
+      return sys_user_malloc(a1);
+    case SYS_user_free:
+      return sys_user_free(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }

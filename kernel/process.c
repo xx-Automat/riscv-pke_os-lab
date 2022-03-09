@@ -16,6 +16,7 @@
 #include "pmm.h"
 #include "memlayout.h"
 #include "spike_interface/spike_utils.h"
+#include "util/functions.h"
 
 //Two functions defined in kernel/usertrap.S
 extern char smode_trap_vector[];
@@ -59,4 +60,106 @@ void switch_to(process* proc) {
 
   // switch to user mode with sret.
   return_to_user(proc->trapframe, user_satp);
+}
+
+uint64 better_malloc(int n){
+  n = ROUNDUP(n, 8);
+  uint64 va_entry = 0;
+  if (n > PGSIZE)
+    panic("malloc space too large");
+  if ((block *)current->free_head == NULL){
+    void* pa = alloc_page();
+    uint64 va = g_ufree_page;
+    g_ufree_page += PGSIZE;
+    user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
+         prot_to_type(PROT_WRITE | PROT_READ, 1));
+    current->free_head = (block *)pa;
+    current->free_head->size = PGSIZE - sizeof(block);
+    current->free_head->next = NULL;
+    current->free_head->previous = NULL;
+    current->free_head->mapped_va = va;
+    current->free_head->used = 0;
+  }
+  block *tblock = current->free_head;
+  while (tblock->size < n && tblock->next){
+    tblock = tblock->next;
+  }
+  if (tblock->size < n){
+    void* pa = alloc_page();
+    uint64 va = g_ufree_page;
+    g_ufree_page += PGSIZE;
+    user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
+         prot_to_type(PROT_WRITE | PROT_READ, 1));
+    block *new_block = (block*)pa;
+    new_block->size = PGSIZE - sizeof(block);
+    new_block->next = NULL;
+    new_block->previous = tblock;
+    new_block->mapped_va = va;
+    new_block->used = 0;
+    tblock->next = new_block;
+    tblock = new_block;
+  }
+  uint64 res = tblock->mapped_va + sizeof(block);
+  uint64 target_pa = (uint64)tblock + sizeof(block);
+  if (tblock->size - n > sizeof(block)) {
+    block *n_t = (block*)(target_pa + n);
+    n_t->used = 0;
+    n_t->mapped_va = res + n;
+    n_t->size = tblock->size - n - sizeof(block);
+    n_t->previous = tblock->previous;
+    n_t->next = tblock->next;
+    if (tblock->previous)
+      tblock->previous->next = n_t;
+    if (tblock->next)
+      n_t->next->previous = n_t;
+    if (tblock == current->free_head)
+      current->free_head = n_t;
+  } else {
+    if(tblock == current->free_head)
+      current->free_head = tblock->next;
+    block *pre = tblock->previous;
+    block *nex = tblock->next;
+    if (pre)
+      pre->next=nex;
+    if (nex)
+      nex->previous=pre;
+  }
+  tblock->size = n;
+  tblock->magic = 123456;
+  tblock->used = 1;
+  if (current->used_head)
+    current->used_head->previous = tblock;
+  tblock->next = current->used_head;
+  tblock->previous = NULL;
+  current->used_head = tblock;
+  return res;
+}
+
+uint64 better_free(uint64 va) {
+  block *uhb = current->used_head;
+  while (uhb) {
+    if (va >= uhb->mapped_va && va <= uhb->mapped_va + uhb->size)
+      break;
+    uhb=uhb->next;
+  }
+  uint64 pa = (uint64)uhb;
+  block *n_t = (block*)pa;
+  if(n_t == current->used_head){ 
+    current->used_head = n_t->next;
+    if (current->used_head)
+      current->used_head->previous = NULL;
+  } else {
+    block *pre = n_t->previous;
+    block *nex = n_t->next;
+    if (pre)
+      pre->next=nex;
+    if (nex)
+      nex->previous=pre;
+  }
+  n_t->used = 0;
+  n_t->next = current->free_head;
+  current->free_head = n_t;
+  if (n_t->next)
+    n_t->next->previous=n_t;
+  return 0;
 }

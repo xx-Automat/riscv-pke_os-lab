@@ -31,4 +31,14 @@ void *user_va_to_pa(pagetable_t page_dir, void *va);
 void user_vm_map(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int perm);
 void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free);
 
+// typedef struct block {
+//   uint64 size;
+//   struct block* next;
+// } block;
+
+// typedef struct mem_control_block {
+//   uint64 is_available;
+//   uint64 size;
+// } mem_control_block;
+
 #endif

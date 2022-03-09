@@ -18,6 +18,15 @@ typedef struct trapframe {
   /* offset:272 */ uint64 kernel_satp;
 }trapframe;
 
+typedef struct block{
+  uint64 used;
+  uint64 magic;
+  uint64 size;
+  struct block *next;
+  struct block *previous;
+  uint64 mapped_va;
+}block;
+
 // the extremely simple definition of process, used for begining labs of PKE
 typedef struct process {
   // pointing to the stack used in trap handling.
@@ -26,6 +35,9 @@ typedef struct process {
   pagetable_t pagetable;
   // trapframe storing the context of a (User mode) process.
   trapframe* trapframe;
+
+  block *free_head;
+  block *used_head;
 }process;
 
 // switch to run user app
@@ -36,4 +48,6 @@ extern process* current;
 // virtual address of our simple heap
 extern uint64 g_ufree_page;
 
+uint64 better_malloc(int n);
+uint64 better_free(uint64 va);
 #endif
