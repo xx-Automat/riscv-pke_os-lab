@@ -98,11 +98,11 @@ static void add_func(elf_symbol *symbol)
 
 static elf_status elf_load_strtab(elf_ctx *ctx)
 {
-  elf_sect_header section_strtab = find_strtab(ctx);
+  elf_sect_header sh_strtab = find_strtab(ctx);
   // read string table
-  // if (elf_fpread(ctx, (void *)strtab, section_strtab.size, section_strtab.sh_offset) != section_strtab.size)
+  // if (elf_fpread(ctx, (void *)strtab, sh_strtab.size, sh_strtab.sh_offset) != sh_strtab.size)
   //   return EL_EIO;
-  if (elf_fpread(ctx, (void *)strtab, sizeof(strtab), section_strtab.offset) != sizeof(strtab)) return EL_EIO;
+  if (elf_fpread(ctx, (void *)strtab, sizeof(strtab), sh_strtab.offset) != sizeof(strtab)) return EL_EIO;
   return EL_OK;
 }
 
