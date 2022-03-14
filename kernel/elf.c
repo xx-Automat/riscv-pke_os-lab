@@ -8,6 +8,25 @@
 #include "riscv.h"
 #include "spike_interface/spike_utils.h"
 
+#define NFUNC 20
+static char strtab[1000];
+static func functions[NFUNC];
+static int func_cnt = 0;
+
+char *find_func(uint64 addr)
+{
+  for (int i = 0; i < func_cnt; ++i)
+  {
+    if (addr >= functions[i].addr && addr < functions[i].addr + functions[i].size)
+    {
+      sprint("/****** debug *****/ addr: 0x%lx, size: %ld, st_idx: %ld, str: %s\n", functions[i].addr, functions[i].size, functions[i].st_idx, strtab + functions[i].st_idx);
+      return strtab + functions[i].st_idx;
+    }
+  }
+  sprint("Not found!\n");
+  return NULL;
+}
+
 typedef struct elf_info_t {
   spike_file_t *f;
   struct process *p;
@@ -42,6 +61,63 @@ elf_status elf_init(elf_ctx *ctx, void *info) {
   // check the signature (magic value) of the elf
   if (ctx->ehdr.magic != ELF_MAGIC) return EL_NOTELF;
 
+  return EL_OK;
+}
+
+static elf_sect_header find_symtab(elf_ctx *ctx)
+{
+  elf_sect_header sh_addr;
+  int i, off;
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(sh_addr)) {
+      if (elf_fpread(ctx, (void *)&sh_addr, sizeof(sh_addr), off) != sizeof(sh_addr))
+        panic("Can't load section header!");
+      if (sh_addr.type == SHT_SYMTAB) break;
+  }
+  return sh_addr;
+}
+
+static elf_sect_header find_strtab(elf_ctx *ctx)
+{
+  elf_sect_header sh_addr;
+  int i, off;
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(sh_addr)) {
+      if (elf_fpread(ctx, (void *)&sh_addr, sizeof(sh_addr), off) != sizeof(sh_addr))
+        panic("Can't load section header!");
+      if (sh_addr.type == SHT_STRTAB && i != ctx->ehdr.shstrndx) break;
+  }
+  return sh_addr;
+}
+
+static void add_func(elf_symbol *symbol)
+{
+  functions[func_cnt].addr = symbol->st_value;
+  functions[func_cnt].st_idx = symbol->st_name;
+  functions[func_cnt].size = symbol->st_size;
+  func_cnt++;
+}
+
+static elf_status elf_load_strtab(elf_ctx *ctx)
+{
+  elf_sect_header section_strtab = find_strtab(ctx);
+  // read string table
+  // if (elf_fpread(ctx, (void *)strtab, section_strtab.size, section_strtab.sh_offset) != section_strtab.size)
+  //   return EL_EIO;
+  if (elf_fpread(ctx, (void *)strtab, sizeof(strtab), section_strtab.offset) != sizeof(strtab)) return EL_EIO;
+  return EL_OK;
+}
+
+static elf_status elf_load_func(elf_ctx *ctx)
+{
+  elf_sect_header symtab = find_symtab(ctx);
+  elf_symbol symbol;
+  uint32 sym_cnt = symtab.size / symtab.entsize;
+  int i, off;
+  for (i = 0, off = symtab.offset; i < sym_cnt; i++, off += sizeof(symbol))
+  {
+    // read symbol table
+    if (elf_fpread(ctx, (void *)&symbol, sizeof(symbol), off) != sizeof(symbol)) return EL_EIO;
+    if (ELF64_ST_TYPE(symbol.st_info) == STT_FUNC) add_func(&symbol);
+  }
   return EL_OK;
 }
 
@@ -124,11 +200,17 @@ void load_bincode_from_host_elf(struct process *p) {
   // load elf
   if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
 
+  // load funcs
+  if (elf_load_func(&elfloader) != EL_OK) panic("Fail on loading funcs.\n");
+
+  // load strtab
+  if (elf_load_strtab(&elfloader) != EL_OK) panic("Fail on loading strtab.\n");
+
   // entry (virtual) address
   p->trapframe->epc = elfloader.ehdr.entry;
 
   // close host file
   spike_file_close( info.f );
 
-  sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+  // sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
 }
