@@ -10,45 +10,46 @@ static void handle_load_access_fault() { panic("Load access fault!"); }
 
 static void handle_store_access_fault() { panic("Store/AMO access fault!"); }
 
-static void get_filename(char *name, addr_line *line){
-  code_file *file = current->file + line->file;
-  char *dir=(current->dir)[file->dir];
-  char *filename = file->file;
-  strcpy(name, dir);
-  name += strlen(dir);
-  *name++ = '/';
-  strcpy(name, filename);
+static void get_filename(char *filepath, addr_line *line){
+  code_file *cf = current->file + line->file;
+  char *dir=(current->dir)[cf->dir];
+  char *filename = cf->file;
+  strcpy(filepath, dir);
+  // filepath = dir + "/" + filename
+  filepath += strlen(dir);
+  *filepath++ = '/';
+  strcpy(filepath, filename);
 }
 
-static void print_file_line(char *filename,uint64 linenum){
-  sprint("Runtime error at %s:%lld\n",filename,linenum);
+static void print_errorline(char *filename, uint64 line){
+  sprint("Runtime error at %s:%ld\n", filename, line);
   char filebuf[800];
-  spike_file_t *file=spike_file_open(filename, O_RDONLY, 0);
+  spike_file_t *file = spike_file_open(filename, O_RDONLY, 0);
   if (IS_ERR_VALUE(file)) panic("Fail on openning the error source file.\n");
-  spike_file_pread(file, (void *)filebuf, 800, 0);
-  // if(spike_file_pread(file,(void *)filebuf,800,0)!=800) panic("Fail on loading error source file.\n");
-  char *p = filebuf;
-  linenum--;
-  while (linenum--) { //skip one '\n'
-    while (*p++ != '\n');
-  }
-  char *end = p;
-  while(*end++ != '\n');
-  *end = 0;
-  sprint(p);
+  spike_file_pread(file, (void *)filebuf, sizeof(filebuf), 0);
+  char *st = filebuf;
+  line--; // start from 0
+  // traverse by line
+  while (line--) {
+    while (*st++ != '\n');  // move the pointer in one line
+  } // have found the errorline
+  char *ed = st;
+  while (*ed++ != '\n');  // move the pointer in the errorline
+  *ed = '\0';
+  sprint(st);
   spike_file_close(file);
 }
 
 static void handle_illegal_instruction(uint64 epc) { 
-  addr_line *line = current->line;
+  addr_line *al = current->line;
   int i;
-  for (i = 0; i < current->line_ind; ++i, ++line) {
-    if (line->addr == epc) break;
+  for (i = 0; i < current->line_ind; ++i, ++al) {
+    if (al->addr == epc) break;
   }
   if (i == current->line_ind) panic("Illegal instruction handle error!");
   char filename[100];
-  get_filename(filename, line);
-  print_file_line(filename, line->line);
+  get_filename(filename, al);
+  print_errorline(filename, al->line);
   panic("Illegal instruction!"); 
 }
 

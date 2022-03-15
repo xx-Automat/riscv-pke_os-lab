@@ -276,7 +276,7 @@ static size_t parse_args(arg_buf *arg_bug_msg) {
   //returns the number of strings after PKE kernel in command line
   return pk_argc - arg;
 }
-
+static char debug_line[2300];
 //
 // load the elf of user application, by using the spike file interface.
 //
@@ -307,11 +307,14 @@ void load_bincode_from_host_elf(struct process *p) {
   // load shstrtab
   if (elf_load_shstrtab(&elfloader) != EL_OK) panic("Fail on loading shstrtab!\n");
   
-  elf_sect_header debug_line_header = find_debug_line(&elfloader);
+  elf_sect_header sh_debug_line = find_debug_line(&elfloader);
+  //sprint("--------%d\n", sh_debug_line.size);
   uint64 sp = p->trapframe->regs.sp;
-  if (elf_fpread(&elfloader, (void *)sp, debug_line_header.size, debug_line_header.offset) != debug_line_header.size)
+  // if (elf_fpread(&elfloader, (void *)debug_line, sh_debug_line.size, sh_debug_line.offset) != sh_debug_line.size)
+  // if (elf_fpread(&elfloader, (void *)debug_line, sizeof(debug_line), sh_debug_line.offset) != sizeof(debug_line))
+  if (elf_fpread(&elfloader, (void *)sp, sh_debug_line.size, sh_debug_line.offset) != sh_debug_line.size)
     panic("Fail to load debug_line.\n");
-  make_addr_line(&elfloader, (char *)sp, debug_line_header.size);
+  make_addr_line(&elfloader, (char *)sp, sh_debug_line.size);
 
   // entry (virtual) address
   p->trapframe->epc = elfloader.ehdr.entry;
