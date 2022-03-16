@@ -66,6 +66,7 @@ typedef struct __attribute__((packed)) {
 
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
 #define ELF_PROG_LOAD 1
+#define SHT_STRTAB 3
 
 typedef enum elf_status_t {
   EL_OK = 0,

@@ -89,6 +89,7 @@ void read_uint16(uint16 *out, char **off) {
 }
 
 static char shstrtab[300];
+static char debug_line[2300]; // 2192 ??? 2300 √ 6800 √
 static elf_sect_header find_shstrtab(elf_ctx *ctx)
 {
   elf_sect_header sh_addr;
@@ -276,7 +277,29 @@ static size_t parse_args(arg_buf *arg_bug_msg) {
   //returns the number of strings after PKE kernel in command line
   return pk_argc - arg;
 }
-static char debug_line[2300];
+
+// we can also finish find ,load and parse the .debug_line section in one function below :)
+elf_status load_debug_line(elf_ctx *ctx) {
+  elf_sect_header sh_addr, sh_shstrtab, sht_debugline;
+  int i, off;
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(sh_addr)) {
+    // read section headers
+    if (elf_fpread(ctx, (void *)&sh_addr, sizeof(sh_addr), off) != sizeof(sh_addr)) return EL_EIO;
+    if (i == ctx->ehdr.shstrndx && sh_addr.type == SHT_STRTAB) sh_shstrtab = sh_addr;
+  }
+  elf_fpread(ctx, (void*)shstrtab, sizeof(shstrtab), sh_shstrtab.offset);
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(sh_addr)) {
+    if (elf_fpread(ctx, (void*)&sh_addr, sizeof(sh_addr), off) != sizeof(sh_addr)) return EL_EIO;
+    char *s = (char*)(shstrtab + sh_addr.name);
+    if (strcmp(s, ".debug_line") == 0) {
+      elf_fpread(ctx, (void*)debug_line, sh_addr.size, sh_addr.offset); // size == 2192
+      make_addr_line(ctx, debug_line, sh_addr.size);
+      return EL_OK;
+    }
+  }
+  return EL_ERR;
+}
+
 //
 // load the elf of user application, by using the spike file interface.
 //
@@ -315,6 +338,9 @@ void load_bincode_from_host_elf(struct process *p) {
   if (elf_fpread(&elfloader, (void *)sp, sh_debug_line.size, sh_debug_line.offset) != sh_debug_line.size)
     panic("Fail to load debug_line.\n");
   make_addr_line(&elfloader, (char *)sp, sh_debug_line.size);
+  
+  // // or simply, finish all above with the following line:
+  // if (load_debug_line(&elfloader) != EL_OK) panic("Fail on loading debug_line!\n");
 
   // entry (virtual) address
   p->trapframe->epc = elfloader.ehdr.entry;
