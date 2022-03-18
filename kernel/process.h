@@ -86,11 +86,10 @@ int free_process( process* proc );
 // fork a child from parent
 int do_fork(process* parent);
 
-int do_wait(process* parent, int wait_pid);
-int find_child(process *parent, int pid);
-int wait_child(int pid);
+int do_wait(int pid);
+void wait_for(int pid);
 void insert_to_waiting_queue(process *proc);
-void check_blocked();
+void wake_up();
 
 // current running process
 extern process* current;

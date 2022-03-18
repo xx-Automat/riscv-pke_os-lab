@@ -191,7 +191,7 @@ int do_fork( process* parent)
         // segment of parent process. 
         // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
         uint64 pa = lookup_pa(parent->pagetable, parent->mapped_info[i].va);
-        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_WRITE | PROT_READ | PROT_EXEC, 1));
+        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_READ | PROT_EXEC, 1));
         sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", pa, parent->mapped_info[i].va);
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
@@ -203,10 +203,11 @@ int do_fork( process* parent)
       }
       case DATA_SEGMENT: {
         uint64 pa = lookup_pa(parent->pagetable, parent->mapped_info[i].va);
+        // the data segments of parent and child processes are independent
         void *child_pa = alloc_page();
         memcpy(child_pa, (void *)pa, PGSIZE);
-        pa = (uint64)child_pa;
-        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
+        // map the same va to different pa
+        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, (uint64)child_pa, prot_to_type(PROT_WRITE | PROT_READ, 1));
         //sprint("do_fork map data segment at pa:%lx of parent to child at va:%lx.\n", pa, parent->mapped_info[i].va);
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
@@ -222,33 +223,32 @@ int do_fork( process* parent)
   child->status = READY;
   child->trapframe->regs.a0 = 0;
   child->parent = parent;
-  //sprint("in do fork()\n");
   insert_to_ready_queue( child );
 
   return child->pid;
 }
 
-int do_wait(process *parent, int pid) {
-  parent->status = BLOCKED;
-  insert_to_ready_queue(&procs[pid]);
-  schedule();
+int do_wait(int pid) {
+  // wait for any child process to exit
+  if (pid == -1) {
+    for (int i = 0; i < NPROC; ++i) {
+      if (procs[i].parent == current) {
+        wait_for(i);
+        return i;
+      }
+    }
+  }
+  if (pid < -1 || pid >= NPROC || (pid > 0 && procs[pid].parent != current)) return -1;
+  // wait for the child process with pid to exit
+  wait_for(pid);
   return pid;
 }
 
-int find_child(process *parent, int pid) {
-  if (pid < -1 || pid >= NPROC || (pid != -1 && procs[pid].parent != parent)) return -1;
-  if (pid == -1) {
-    for (int i = 0; i < NPROC; ++i) {
-      if (procs[i].parent == current) return i;
-    }
-  }
-  return pid; // current process has no child
-}
-
-int wait_child(int pid) {
-  if (pid < -1 || pid >= NPROC || procs[pid].parent != current) return -1;
-  if (procs[pid].status == FREE || procs[pid].status == ZOMBIE) return 0;
-  return 1;
+void wait_for(int pid) {
+  if (procs[pid].status == FREE || procs[pid].status == ZOMBIE) return;
+  current->status = BLOCKED;
+  insert_to_waiting_queue( current );
+  schedule();
 }
 
 process *waiting_queue_head = NULL;
@@ -271,12 +271,13 @@ void insert_to_waiting_queue(process *proc) {
   // p points to the last element of the waiting queue
   if( p==proc ) return;
   proc->status = BLOCKED;
-  proc->queue_next = waiting_queue_head;
+  proc->queue_next = waiting_queue_head; // ummm, more like a stack...
   waiting_queue_head = proc;
+
   return;
 }
 
-void check_blocked() {
+void wake_up() {
   if (waiting_queue_head) {
     waiting_queue_head->status = READY;
     process *p = waiting_queue_head;
