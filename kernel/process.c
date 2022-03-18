@@ -65,7 +65,9 @@ void switch_to(process* proc) {
 uint64 better_malloc(int n) {
   n = ROUNDUP(n, 8);
   if (n > PGSIZE) panic("The malloc size n should be smaller than PGSIZE.");
+  // if the free block queue is empty
   if ((block *)current->free_head == NULL) {
+    // allocate a new page
     void* pa = alloc_page();
     uint64 va = g_ufree_page;
     g_ufree_page += PGSIZE;
@@ -77,10 +79,13 @@ uint64 better_malloc(int n) {
     current->free_head->va = va;
     current->free_head->used = 0;
   }
+  // free block queue is not empty
   block *cur = current->free_head;
+  // browse the queue to see if there is already a block big enough (FF like???)
   while (cur->size < n && cur->next) {
     cur = cur->next;
   }
+  // no existing block big enough is found, malloc a new block 
   if (cur->size < n) { // cur->next = NULL
     void* pa = alloc_page();
     uint64 va = g_ufree_page;
