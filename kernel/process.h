@@ -18,13 +18,11 @@ typedef struct trapframe {
   /* offset:272 */ uint64 kernel_satp;
 }trapframe;
 
-typedef struct block{
+typedef struct block {
   uint64 used;
-  uint64 magic;
   uint64 size;
   struct block *next;
-  struct block *previous;
-  uint64 mapped_va;
+  uint64 va;
 }block;
 
 // the extremely simple definition of process, used for begining labs of PKE
@@ -49,5 +47,5 @@ extern process* current;
 extern uint64 g_ufree_page;
 
 uint64 better_malloc(int n);
-uint64 better_free(uint64 va);
+void better_free(uint64 va);
 #endif

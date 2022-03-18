@@ -50,10 +50,6 @@ uint64 sys_user_allocate_page() {
   return va;
 }
 
-uint64 sys_user_malloc(uint64 n) {
-  return better_malloc(n);
-}
-
 //
 // reclaim a page, indicated by "va".
 //
@@ -62,6 +58,16 @@ uint64 sys_user_free_page(uint64 va) {
   return 0;
 }
 
+//
+// allocate blocks in one page
+//
+uint64 sys_user_malloc(uint64 n) {
+  return better_malloc(n);
+}
+
+//
+// free a block, indicated by "va".
+//
 uint64 sys_user_free(uint64 va) {
   better_free(va);
   return 0;

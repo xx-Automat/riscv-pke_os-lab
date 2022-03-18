@@ -62,12 +62,10 @@ void switch_to(process* proc) {
   return_to_user(proc->trapframe, user_satp);
 }
 
-uint64 better_malloc(int n){
+uint64 better_malloc(int n) {
   n = ROUNDUP(n, 8);
-  uint64 va_entry = 0;
-  if (n > PGSIZE)
-    panic("malloc space too large");
-  if ((block *)current->free_head == NULL){
+  if (n > PGSIZE) panic("The malloc size n should be smaller than PGSIZE.");
+  if ((block *)current->free_head == NULL) {
     void* pa = alloc_page();
     uint64 va = g_ufree_page;
     g_ufree_page += PGSIZE;
@@ -76,90 +74,60 @@ uint64 better_malloc(int n){
     current->free_head = (block *)pa;
     current->free_head->size = PGSIZE - sizeof(block);
     current->free_head->next = NULL;
-    current->free_head->previous = NULL;
-    current->free_head->mapped_va = va;
+    current->free_head->va = va;
     current->free_head->used = 0;
   }
-  block *tblock = current->free_head;
-  while (tblock->size < n && tblock->next){
-    tblock = tblock->next;
+  block *cur = current->free_head;
+  while (cur->size < n && cur->next) {
+    cur = cur->next;
   }
-  if (tblock->size < n){
+  if (cur->size < n) { // cur->next = NULL
     void* pa = alloc_page();
     uint64 va = g_ufree_page;
     g_ufree_page += PGSIZE;
     user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
          prot_to_type(PROT_WRITE | PROT_READ, 1));
-    block *new_block = (block*)pa;
-    new_block->size = PGSIZE - sizeof(block);
-    new_block->next = NULL;
-    new_block->previous = tblock;
-    new_block->mapped_va = va;
-    new_block->used = 0;
-    tblock->next = new_block;
-    tblock = new_block;
+    block *tb = (block*)pa;
+    tb->size = PGSIZE - sizeof(block);
+    tb->next = NULL;
+    tb->va = va;
+    tb->used = 0;
+    cur->next = tb;
+    cur = tb;
   }
-  uint64 res = tblock->mapped_va + sizeof(block);
-  uint64 target_pa = (uint64)tblock + sizeof(block);
-  if (tblock->size - n > sizeof(block)) {
-    block *n_t = (block*)(target_pa + n);
-    n_t->used = 0;
-    n_t->mapped_va = res + n;
-    n_t->size = tblock->size - n - sizeof(block);
-    n_t->previous = tblock->previous;
-    n_t->next = tblock->next;
-    if (tblock->previous)
-      tblock->previous->next = n_t;
-    if (tblock->next)
-      n_t->next->previous = n_t;
-    if (tblock == current->free_head)
-      current->free_head = n_t;
+  uint64 res_va = cur->va + sizeof(block);
+  uint64 res_pa = (uint64)cur + sizeof(block);
+  // After allocation, there is enough space left to divide into new blocks
+  if (cur->size - n > sizeof(block)) {
+    block *nb = (block*)(res_pa + n);
+    nb->used = 0;
+    nb->va = res_va + n;
+    nb->size = cur->size - n - sizeof(block);
+    nb->next = cur->next;
+    if (cur == current->free_head)
+      current->free_head = nb;
   } else {
-    if(tblock == current->free_head)
-      current->free_head = tblock->next;
-    block *pre = tblock->previous;
-    block *nex = tblock->next;
-    if (pre)
-      pre->next=nex;
-    if (nex)
-      nex->previous=pre;
+    if (cur == current->free_head)
+      current->free_head = cur->next;
   }
-  tblock->size = n;
-  tblock->magic = 123456;
-  tblock->used = 1;
-  if (current->used_head)
-    current->used_head->previous = tblock;
-  tblock->next = current->used_head;
-  tblock->previous = NULL;
-  current->used_head = tblock;
-  return res;
+  cur->size = n;
+  cur->used = 1;
+  cur->next = current->used_head;
+  current->used_head = cur;
+  return res_va;
 }
 
-uint64 better_free(uint64 va) {
-  block *uhb = current->used_head;
-  while (uhb) {
-    if (va >= uhb->mapped_va && va <= uhb->mapped_va + uhb->size)
+void better_free(uint64 va) {
+  block *tb = current->used_head;
+  while (tb) {
+    if (va >= tb->va && va <= tb->va + tb->size)
       break;
-    uhb=uhb->next;
+    tb = tb->next;
   }
-  uint64 pa = (uint64)uhb;
-  block *n_t = (block*)pa;
-  if(n_t == current->used_head){ 
-    current->used_head = n_t->next;
-    if (current->used_head)
-      current->used_head->previous = NULL;
-  } else {
-    block *pre = n_t->previous;
-    block *nex = n_t->next;
-    if (pre)
-      pre->next=nex;
-    if (nex)
-      nex->previous=pre;
+  if (tb == current->used_head) { 
+    current->used_head = tb->next;
   }
-  n_t->used = 0;
-  n_t->next = current->free_head;
-  current->free_head = n_t;
-  if (n_t->next)
-    n_t->next->previous=n_t;
-  return 0;
+  tb->used = 0;
+  tb->next = current->free_head;
+  current->free_head = tb;
 }
