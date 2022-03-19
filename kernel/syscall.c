@@ -61,7 +61,7 @@ uint64 sys_user_free_page(uint64 va) {
 }
 
 //
-// kerenl entry point of naive_fork
+// kernel entry point of naive_fork
 //
 ssize_t sys_user_fork() {
   sprint("User call fork.\n");
@@ -69,7 +69,7 @@ ssize_t sys_user_fork() {
 }
 
 //
-// kerenl entry point of yield
+// kernel entry point of yield
 //
 ssize_t sys_user_yield() {
   // TODO (lab3_2): implment the syscall of yield.
@@ -83,23 +83,26 @@ ssize_t sys_user_yield() {
   return 0;
 }
 
+//
+// kernel entry point of sem_new
+//
 int sys_user_sem_new(int n) {
-  return sem_new(n);
+  return do_sem_new(n);
 }
 
-int sys_user_sem_P(int n) {
-  sem_change(n, TRUE);
-  if (sem_waiting(n)) {
-    current->status = BLOCKED;
-    insert_to_sem_queue(n, current);
-    schedule();
-  }
+//
+// kernel entry point of sem_P
+//
+int sys_user_sem_P(int s) {
+  wait(s);
   return 0;
 }
 
-int sys_user_sem_V(int n) {
-  sem_change(n, FALSE);
-  wake_up_one_by_sem(n);
+//
+// kernel entry point of sem_V
+//
+int sys_user_sem_V(int s) {
+  signal(s);
   return 0;
 }
 

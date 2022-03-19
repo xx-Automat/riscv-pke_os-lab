@@ -90,10 +90,14 @@ extern process* current;
 extern uint64 g_ufree_page;
 
 #define NSEM 10
+struct semaphore {
+  int value;
+  process *waiting_queue_head;
+}sems[NSEM];
 
-int sem_new(int ini);
-void sem_change(int i, bool sub);
-bool sem_waiting(int i);
+int do_sem_new(int n);
+void wait(int i);
+void signal(int i);
 void insert_to_sem_queue(int i, process *proc);
-void wake_up_one_by_sem(int i);
+void wake_up(int i);
 #endif

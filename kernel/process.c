@@ -191,7 +191,7 @@ int do_fork( process* parent)
         // segment of parent process. 
         // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
         uint64 pa = lookup_pa(parent->pagetable, parent->mapped_info[i].va);
-        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_WRITE | PROT_READ | PROT_EXEC, 1));
+        user_vm_map(child->pagetable, parent->mapped_info[i].va, PGSIZE, pa, prot_to_type(PROT_READ | PROT_EXEC, 1));
         sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", pa, parent->mapped_info[i].va);
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
@@ -212,38 +212,41 @@ int do_fork( process* parent)
   return child->pid;
 }
 
-int sem_index = 0;
-int sems[NSEM];
-
-int sem_new(int ini) {
-  if (sem_index < NSEM)
+int nsem = 0;
+process *sem_procs[NSEM];
+int do_sem_new(int n) {
+  if (nsem < NSEM)
   {
-    sems[sem_index] = ini;
-    return sem_index++;
+    sems[nsem].value = n;
+    return nsem++;
   }
+  panic("Cannot find any free semaphore structure.\n");
   return -1;
 }
 
-bool sem_waiting(int i) {
-  if(i >= 0 && i < sem_index){
-    return sems[i] < 0;
-  }
-  return FALSE;
-}
-void sem_change(int i, bool sub) {
-  if(i >= 0 && i < sem_index){
-    if(sub) sems[i]--;
-    else sems[i]++;
+void wait(int i) {
+  assert(0 <= i && i < nsem);
+  sems[i].value--;
+  if (sems[i].value < 0) {
+    insert_to_sem_queue(i, current);
+    current->status = BLOCKED;
+    schedule();
   }
 }
 
-process *sem_procs[NSEM];
+void signal(int i) {
+  assert(0 <= i && i < nsem);
+  sems[i].value++;
+  if (sems[i].value <= 0) {
+    wake_up(i);
+  }
+}
 
-void insert_to_sem_queue(int i, process *proc){
-  process *p = sem_procs[i];
+void insert_to_sem_queue(int i, process *proc) {
+  process *p = sems[i].waiting_queue_head;
   if (p == NULL) {
     proc->queue_next = NULL;
-    sem_procs[i] = proc;
+    sems[i].waiting_queue_head = proc;
     return;
   }
 
@@ -251,15 +254,17 @@ void insert_to_sem_queue(int i, process *proc){
   for( ; p->queue_next; p = p->queue_next)
     if (p == proc) return;  //already in queue
 
-  if (p == proc) return;
+  if ( p == proc ) return;
   p->queue_next = proc;
   proc->queue_next = NULL;
+
+  return;
 }
 
-void wake_up_one_by_sem(int i) {
-  process *p = sem_procs[i];
+void wake_up(int i) {
+  process *p =  sems[i].waiting_queue_head;
   if (p) {
-    sem_procs[i] = p->queue_next;
+    sems[i].waiting_queue_head = p->queue_next;
     insert_to_ready_queue(p);
   }
 }
