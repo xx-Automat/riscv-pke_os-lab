@@ -249,7 +249,6 @@ int do_wait(int pid) {
 // block current process, wait for its child process with pid to exit
 void wait_for(int pid) {
   if (procs[pid].status == FREE || procs[pid].status == ZOMBIE) return;
-  current->status = BLOCKED;
   insert_to_waiting_queue( current );
   schedule();
 }
@@ -280,11 +279,10 @@ void insert_to_waiting_queue(process *proc) {
   return;
 }
 
+// move the waiting queue head process to the rear of the ready queue
 void wake_up() {
-  if (waiting_queue_head) {
-    waiting_queue_head->status = READY;
-    process *p = waiting_queue_head;
-    waiting_queue_head = waiting_queue_head->queue_next;
-    insert_to_ready_queue(p);
-  }
+  if (waiting_queue_head == NULL) return;
+  process *p = waiting_queue_head;
+  waiting_queue_head = waiting_queue_head->queue_next;
+  insert_to_ready_queue(p);
 }

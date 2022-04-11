@@ -85,8 +85,7 @@ void rrsched() {
   current->tick_count++;
   if (current->tick_count >= TIME_SLICE_LEN) {
     current->tick_count = 0;
-    current->status = READY;
-    //sprint("in rrshed()\n");
+    //current->status = READY;
     insert_to_ready_queue( current );
     schedule();
   }
