@@ -90,10 +90,10 @@ extern process* current;
 extern uint64 g_ufree_page;
 
 #define NSEM 10
-struct semaphore {
+typedef struct semaphore {
   int value;
   process *waiting_queue_head;
-}sems[NSEM];
+}semaphore;
 
 int do_sem_new(int n);
 void wait(int i);

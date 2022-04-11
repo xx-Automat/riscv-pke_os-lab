@@ -213,6 +213,7 @@ int do_fork( process* parent)
 }
 
 int nsem = 0;
+semaphore sems[NSEM];
 int do_sem_new(int n) {
   if (nsem < NSEM)
   {
