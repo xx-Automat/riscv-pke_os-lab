@@ -228,8 +228,9 @@ int do_fork( process* parent)
   return child->pid;
 }
 
+// implements wait syscall in kernel.
 int do_wait(int pid) {
-  // wait for any child process to exit
+  // wait for any child process to exit and return its pid
   if (pid == -1) {
     for (int i = 0; i < NPROC; ++i) {
       if (procs[i].parent == current) {
@@ -238,12 +239,14 @@ int do_wait(int pid) {
       }
     }
   }
+  // if pid is invalid, or pid > 0 but the process with pid isn't current process's child, return -1 
   if (pid < -1 || pid >= NPROC || (pid > 0 && procs[pid].parent != current)) return -1;
-  // wait for the child process with pid to exit
+  // if pid > 0, wait for the child process with pid to exit and return its pid
   wait_for(pid);
   return pid;
 }
 
+// block current process, wait for its child process with pid to exit
 void wait_for(int pid) {
   if (procs[pid].status == FREE || procs[pid].status == ZOMBIE) return;
   current->status = BLOCKED;
