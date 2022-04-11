@@ -213,7 +213,6 @@ int do_fork( process* parent)
 }
 
 int nsem = 0;
-process *sem_procs[NSEM];
 int do_sem_new(int n) {
   if (nsem < NSEM)
   {
