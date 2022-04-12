@@ -229,7 +229,7 @@ void wait(int i) {
   sems[i].value--;
   if (sems[i].value < 0) {
     insert_to_sem_queue(i, current);
-    current->status = BLOCKED;
+    //current->status = BLOCKED;
     schedule();
   }
 }
@@ -243,19 +243,25 @@ void signal(int i) {
 }
 
 void insert_to_sem_queue(int i, process *proc) {
-  process *p = sems[i].waiting_queue_head;
-  if (p == NULL) {
+  // sprint( "going to insert process %d to waiting queue.\n", proc->pid );
+  // if the queue is empty in the beginning
+  if( sems[i].waiting_queue_head == NULL ){
+    proc->status = BLOCKED;
     proc->queue_next = NULL;
     sems[i].waiting_queue_head = proc;
     return;
   }
 
-  // browse the ready queue to see if proc is already in-queue
-  for( ; p->queue_next; p = p->queue_next)
-    if (p == proc) return;  //already in queue
+  // waiting queue is not empty
+  process *p;
+  // browse the waiting queue to see if proc is already in-queue
+  for( p=sems[i].waiting_queue_head; p->queue_next!=NULL; p=p->queue_next )
+    if( p == proc ) return;  //already in queue
 
-  if ( p == proc ) return;
+ // p points to the last element of the waiting queue
+  if( p==proc ) return;
   p->queue_next = proc;
+  proc->status = BLOCKED;
   proc->queue_next = NULL;
 
   return;
