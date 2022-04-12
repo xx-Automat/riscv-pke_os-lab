@@ -62,10 +62,10 @@ void switch_to(process* proc) {
   return_to_user(proc->trapframe, user_satp);
 }
 
-uint64 better_malloc(int n) {
+uint64 do_better_malloc(int n) {
   n = ROUNDUP(n, 8);
   if (n > PGSIZE) panic("The malloc size n should be smaller than PGSIZE.");
-  // if the free block queue is empty
+  // if the free block list is empty
   if ((block *)current->free_head == NULL) {
     // allocate a new page
     void* pa = alloc_page();
@@ -77,16 +77,15 @@ uint64 better_malloc(int n) {
     current->free_head->size = PGSIZE - sizeof(block);
     current->free_head->next = NULL;
     current->free_head->va = va;
-    current->free_head->used = 0;
   }
-  // free block queue is not empty
+  // free block list is not empty
   block *cur = current->free_head;
-  // browse the queue to see if there is already a block big enough (FF like???)
+  // browse the list to see if there is already a block big enough (maybe like FF in linux)
   while (cur->size < n && cur->next) {
     cur = cur->next;
   }
   // no existing block big enough is found, malloc a new block 
-  if (cur->size < n) { // cur->next = NULL
+  if (cur->size < n) {
     void* pa = alloc_page();
     uint64 va = g_ufree_page;
     g_ufree_page += PGSIZE;
@@ -96,16 +95,14 @@ uint64 better_malloc(int n) {
     tb->size = PGSIZE - sizeof(block);
     tb->next = NULL;
     tb->va = va;
-    tb->used = 0;
     cur->next = tb;
     cur = tb;
   }
   uint64 res_va = cur->va + sizeof(block);
   uint64 res_pa = (uint64)cur + sizeof(block);
-  // After allocation, there is enough space left to divide into new blocks
+  // After allocation, there is enough space left for a new block
   if (cur->size - n > sizeof(block)) {
     block *nb = (block*)(res_pa + n);
-    nb->used = 0;
     nb->va = res_va + n;
     nb->size = cur->size - n - sizeof(block);
     nb->next = cur->next;
@@ -116,23 +113,27 @@ uint64 better_malloc(int n) {
       current->free_head = cur->next;
   }
   cur->size = n;
-  cur->used = 1;
   cur->next = current->used_head;
   current->used_head = cur;
   return res_va;
 }
 
-void better_free(uint64 va) {
-  block *tb = current->used_head;
-  while (tb) {
-    if (va >= tb->va && va <= tb->va + tb->size)
+void do_better_free(uint64 va) {
+  block *cur = current->used_head, *prev = NULL;
+  while (cur) {
+    if (va >= cur->va && va <= cur->va + cur->size)
       break;
-    tb = tb->next;
+    prev = cur;
+    cur = cur->next;
   }
-  if (tb == current->used_head) { 
-    current->used_head = tb->next;
+  if (cur == NULL) panic("va 0x%lx hasn't been malloced!\n", va);
+  // remove the block from used block list
+  if (cur == current->used_head) { 
+    current->used_head = cur->next;
+  } else {
+    prev->next = cur->next;
   }
-  tb->used = 0;
-  tb->next = current->free_head;
-  current->free_head = tb;
+  // insert the block to the free block list
+  cur->next = current->free_head;
+  current->free_head = cur;
 }

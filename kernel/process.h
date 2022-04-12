@@ -18,10 +18,10 @@ typedef struct trapframe {
   /* offset:272 */ uint64 kernel_satp;
 }trapframe;
 
-typedef struct block {
+typedef struct mem_control_block {
   uint64 used;
   uint64 size;
-  struct block *next;
+  struct mem_control_block *next;
   uint64 va;
 }block;
 
@@ -46,6 +46,6 @@ extern process* current;
 // virtual address of our simple heap
 extern uint64 g_ufree_page;
 
-uint64 better_malloc(int n);
-void better_free(uint64 va);
+uint64 do_better_malloc(int n);
+void do_better_free(uint64 va);
 #endif
