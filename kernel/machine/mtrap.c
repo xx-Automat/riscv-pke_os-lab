@@ -10,7 +10,7 @@ static void handle_load_access_fault() { panic("Load access fault!"); }
 
 static void handle_store_access_fault() { panic("Store/AMO access fault!"); }
 
-static void get_filename(char *filepath, addr_line *line){
+static void get_filename(char *filepath, addr_line *line) {
   code_file *cf = current->file + line->file;
   char *dir=(current->dir)[cf->dir];
   char *filename = cf->file;
@@ -21,7 +21,7 @@ static void get_filename(char *filepath, addr_line *line){
   strcpy(filepath, filename);
 }
 
-static void print_errorline(char *filename, uint64 line){
+static void print_errorline(char *filename, uint64 line) {
   sprint("Runtime error at %s:%ld\n", filename, line);
   char filebuf[800];
   spike_file_t *file = spike_file_open(filename, O_RDONLY, 0);

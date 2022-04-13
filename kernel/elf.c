@@ -278,7 +278,7 @@ static size_t parse_args(arg_buf *arg_bug_msg) {
   return pk_argc - arg;
 }
 
-// we can also finish find ,load and parse the .debug_line section in one function below :)
+// to simplify, we can also finish find, load and parse the .debug_line section in one function below :)
 elf_status load_debug_line(elf_ctx *ctx) {
   elf_sect_header sh_addr, sh_shstrtab, sht_debugline;
   int i, off;
