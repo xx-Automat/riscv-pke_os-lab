@@ -39,12 +39,12 @@ ssize_t sys_user_exit(uint64 code) {
 ssize_t sys_user_backtrace(uint64 depth)
 {
   uint64 *fp = (uint64 *)current->trapframe->regs.s0; // 810fffa0
-  sprint("/****** debug *****/  *fp=0x%lx\n", *fp); // 810fffc0
+  // sprint("/****** debug *****/  *fp=0x%lx\n", *fp); // 810fffc0
   for (int i = 0; i < depth; ++i)
   {
     uint64 ra = *(fp + 2 * i + 1);//810002d8 810002ec + 14 = 81000300 81000314 81000334
-    sprint("/****** debug *****/ fp=0x%lx\n",fp + 2 * i + 1);
-    sprint("/****** debug *****/ ra=0x%lx\n",ra);
+    // sprint("/****** debug *****/ fp=0x%lx\n",fp + 2 * i + 1);
+    // sprint("/****** debug *****/ ra=0x%lx\n",ra);
     char *func = find_func(ra);
     assert(func);
     sprint("%s\n", func);

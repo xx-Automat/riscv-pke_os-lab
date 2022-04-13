@@ -19,7 +19,7 @@ char *find_func(uint64 addr)
   {
     if (addr >= functions[i].addr && addr < functions[i].addr + functions[i].size)
     {
-      sprint("/****** debug *****/ addr: 0x%lx, size: %ld, st_idx: %ld, str: %s\n", functions[i].addr, functions[i].size, functions[i].st_idx, strtab + functions[i].st_idx);
+      // sprint("/****** debug *****/ addr: 0x%lx, size: %ld, st_idx: %ld, str: %s\n", functions[i].addr, functions[i].size, functions[i].st_idx, strtab + functions[i].st_idx);
       return strtab + functions[i].st_idx;
     }
   }
@@ -88,14 +88,6 @@ static elf_sect_header find_strtab(elf_ctx *ctx)
   return sh_addr;
 }
 
-static void add_func(elf_symbol *symbol)
-{
-  functions[func_cnt].addr = symbol->st_value;
-  functions[func_cnt].st_idx = symbol->st_name;
-  functions[func_cnt].size = symbol->st_size;
-  func_cnt++;
-}
-
 static elf_status elf_load_strtab(elf_ctx *ctx)
 {
   elf_sect_header sh_strtab = find_strtab(ctx);
@@ -116,7 +108,11 @@ static elf_status elf_load_func(elf_ctx *ctx)
   {
     // read symbol table
     if (elf_fpread(ctx, (void *)&symbol, sizeof(symbol), off) != sizeof(symbol)) return EL_EIO;
-    if (ELF64_ST_TYPE(symbol.st_info) == STT_FUNC) add_func(&symbol);
+    if (ELF64_ST_TYPE(symbol.st_info) == STT_FUNC) {
+        functions[func_cnt].addr = symbol.st_value;
+        functions[func_cnt].st_idx = symbol.st_name;
+        functions[func_cnt++].size = symbol.st_size;
+    }
   }
   return EL_OK;
 }
