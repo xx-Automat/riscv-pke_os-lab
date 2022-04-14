@@ -11,7 +11,7 @@ void f7() { f8(); }
 void f6() { f7(); }
 void f5() { f6(); }
 void f4() { f5(); }
-int f3() { f4(); return 0; }
+int f3() { int y; f4(); return 0; }
 void f2(int x) { f3(); }
 void f1() { f2(1); }
 
